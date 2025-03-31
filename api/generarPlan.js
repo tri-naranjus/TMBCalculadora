@@ -1,5 +1,9 @@
-// redeploy trigger
+import OpenAI from 'openai';
 import promptTemplate from './prompt_plan.js';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY1 // asegúrate de que esté bien escrita en Vercel
+});
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -39,45 +43,43 @@ INTOLERANCIAS: ${intolerancias?.join(', ') || 'Ninguna'}
 
   const promptFinal = `${promptTemplate}\n\nDatos del usuario:\n${datosUsuario}`;
 
-  console.log("🧪 Entrando a generarPlan...");
-  console.log("📦 PromptTemplate:", promptTemplate.slice(0, 100));
-  console.log("📥 Datos usuario:", req.body);
-  console.log("📤 Prompt final:", promptFinal.slice(0, 200));
-
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY1}`,
+    // 1. Crear thread
+    const thread = await openai.beta.threads.create();
 
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content:
-              "Eres un nutricionista experto en fisiología y rendimiento deportivo. Usa emojis. SIGUE LAS SIGUIENTES INSTRUCCIONES ",
-          },
-          { role: "user", content: promptFinal },
-        ],
-        temperature: 0.7,
-         max_tokens: 1000,
-      }),
+    // 2. Añadir mensaje del usuario
+    await openai.beta.threads.messages.create(thread.id, {
+      role: "user",
+      content: promptFinal,
     });
 
-    const data = await response.json();
-    console.log("📥 Respuesta GPT:", data);
+    // 3. Ejecutar el asistente
+    const run = await openai.beta.threads.runs.create(thread.id, {
+      assistant_id: "asst_EoXmMOlc4BvPgysPIWYR0mri"
+    });
 
-    if (data?.choices?.[0]?.message?.content) {
-      return res.status(200).json({ plan: data.choices[0].message.content });
-    } else {
-      console.error("⚠️ Respuesta vacía o inesperada:", data);
-      return res.status(500).json({ error: "Respuesta inválida del modelo" });
+    // 4. Esperar a que termine
+    let status;
+    do {
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      status = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+    } while (status.status !== "completed" && status.status !== "failed");
+
+    if (status.status === "failed") {
+      return res.status(500).json({ error: "El asistente no pudo completar la tarea." });
     }
+
+    // 5. Recuperar los mensajes generados
+    const messages = await openai.beta.threads.messages.list(thread.id);
+    const respuesta = messages.data
+      .filter(m => m.role === "assistant")
+      .map(m => m.content.map(c => c.text.value).join("\n"))
+      .join("\n");
+
+    return res.status(200).json({ plan: respuesta });
+
   } catch (error) {
-    console.error("🔴 Error GPT:", error);
-    return res.status(500).json({ error: error.message || "Error desconocido" });
+    console.error("🔴 Error en el asistente:", error);
+    return res.status(500).json({ error: error.message || "Error desconocido con el asistente" });
   }
 }
