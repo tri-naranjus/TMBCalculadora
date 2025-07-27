@@ -1,13 +1,5 @@
 
 const prompt = `
-habla en castellano y no escribas en MARKDOWN escribe texto como para una publicacion en INTERNET
-
-MUESTRA LOS HORARIOS DE LAS COMIDAS, estos estaran organizados segun la hora del entrenamiento en funcion de lo mas optimo segun la ciencia.
-
-Muestra los resultados de una forma elegante usando emojis. 
-Siempre que puedas usa modo fichas 
-
-## 🧠 PROMPT: Nutrición Estratégica Basada en Ritmos Hormonales
 
 Actúa como **nutricionista experto en fisiología hormonal y crononutrición deportiva**.
 
@@ -63,13 +55,6 @@ Aprovecha el ritmo hormonal diario para definir el tipo de comida:
 
 ---
 
-### ✅ Instrucciones finales:
-
-Da un ejemplo de **día completo** (desayuno, comida, merienda, cena, y pre/postentreno si aplica), indicando:
-
-- **Horarios sugeridos según el ritmo circadiano**  
-- **Distribución de macronutrientes por comida**  
-- Breve **justificación fisiológica de cada combinación**
 
 
 `;
