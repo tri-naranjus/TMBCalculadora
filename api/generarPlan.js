@@ -61,7 +61,7 @@ INTOLERANCIAS: ${intolerancias?.join(', ') || 'Ninguna'}
     // 4. Esperar a que termine
     let status;
     do {
-      await new Promise(resolve => setTimeout(resolve, 3500));
+      await new Promise(resolve => setTimeout(resolve, 1500));
       status = await openai.beta.threads.runs.retrieve(thread.id, run.id);
     } while (status.status !== "completed" && status.status !== "failed");
 
