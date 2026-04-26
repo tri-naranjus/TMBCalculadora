@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import promptTemplate from './prompt_plan.js';
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY1 // asegúrate de que esté bien escrita en Vercel
+  apiKey: process.env.OPENAI_API_KEY
 });
 
 export default async function handler(req, res) {
