@@ -9,3 +9,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>,
 )
+
+if (window.parent !== window) {
+  const post = () => {
+    const h = document.documentElement.scrollHeight
+    window.parent.postMessage({ type: 'tmb-calc:height', height: h }, '*')
+  }
+  const ro = new ResizeObserver(post)
+  ro.observe(document.documentElement)
+  window.addEventListener('load', post)
+}
