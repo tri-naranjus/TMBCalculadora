@@ -50,14 +50,14 @@ export default function PlanNutricionalEntreno({ GET, peso, edad, altura, sexo, 
         }),
       });
 
-      const data = await response.json();
-      if (data.plan) {
+      const data = await response.json().catch(() => ({}));
+      if (response.ok && data.plan) {
         setPlanGenerado(data.plan);
       } else {
-        setPlanGenerado("❌ Error al generar el plan. Intenta de nuevo.");
+        setPlanGenerado(`❌ Error al generar el plan: ${data.error || response.statusText || 'desconocido'}`);
       }
     } catch (err) {
-      setPlanGenerado("❌ Ha ocurrido un error inesperado.");
+      setPlanGenerado(`❌ Ha ocurrido un error inesperado: ${err.message || err}`);
     }
     setCargando(false);
   };

@@ -1,85 +1,78 @@
-import OpenAI from 'openai';
 import promptTemplate from './prompt_plan.js';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
-});
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
+const MODEL = 'llama-3.3-70b-versatile';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Método no permitido' });
   }
 
+  if (!process.env.GROQ_API_KEY) {
+    return res.status(500).json({ error: 'Falta GROQ_API_KEY en el entorno del servidor.' });
+  }
+
   const {
-    edad,
-    peso,
-    altura,
-    sexo,
-    GET,
-    objetivo,
-    tipoEntreno,
-    horaEntreno,
-    intensidad,
-    duracion,
+    edad, peso, altura, sexo,
+    GET, objetivo,
+    tipoEntreno, horaEntreno, intensidad, duracion,
     intolerancias,
-  } = req.body;
+  } = req.body || {};
 
   const datosUsuario = `
 EDAD: ${edad}
-PESO: ${peso}
-ALTURA: ${altura}
+PESO: ${peso} kg
+ALTURA: ${altura} cm
 SEXO: ${sexo}
-GET según objetivo: ${GET} kcal
+GET (kcal objetivo del día): ${GET} kcal
 OBJETIVO: ${objetivo}
 
 ENTRENAMIENTO:
-- Tipo: ${tipoEntreno}
-- Hora: ${horaEntreno}
-- Intensidad: ${intensidad}
-- Duración: ${duracion} min
+- Tipo: ${tipoEntreno || 'No especificado'}
+- Hora: ${horaEntreno || 'No especificada'}
+- Intensidad: ${intensidad || 'No especificada'}
+- Duración: ${duracion || 0} min
 
-INTOLERANCIAS: ${intolerancias?.join(', ') || 'Ninguna'}
-`;
+INTOLERANCIAS: ${Array.isArray(intolerancias) && intolerancias.length ? intolerancias.join(', ') : 'Ninguna'}
+`.trim();
 
-  const promptFinal = `${promptTemplate}\n\nDatos del usuario:\n${datosUsuario}`;
+  const systemPrompt = promptTemplate.replace('{KCAL}', String(GET ?? ''));
+  const userPrompt = `Datos del usuario:\n${datosUsuario}\n\nGenera el plan ahora.`;
 
   try {
-    // 1. Crear thread
-    const thread = await openai.beta.threads.create();
-
-    // 2. Añadir mensaje del usuario
-    await openai.beta.threads.messages.create(thread.id, {
-      role: "user",
-      content: promptFinal,
+    const groqRes = await fetch(GROQ_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: MODEL,
+        temperature: 0.4,
+        max_tokens: 2048,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+      }),
     });
 
-    // 3. Ejecutar el asistente
-    const run = await openai.beta.threads.runs.create(thread.id, {
-      assistant_id: "asst_EoXmMOlc4BvPgysPIWYR0mri"
-    });
-
-    // 4. Esperar a que termine
-    let status;
-    do {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      status = await openai.beta.threads.runs.retrieve(thread.id, run.id);
-    } while (status.status !== "completed" && status.status !== "failed");
-
-    if (status.status === "failed") {
-      return res.status(500).json({ error: "El asistente no pudo completar la tarea." });
+    if (!groqRes.ok) {
+      const errText = await groqRes.text();
+      console.error('🔴 Groq error:', groqRes.status, errText);
+      return res.status(502).json({ error: `Groq API error ${groqRes.status}: ${errText.slice(0, 300)}` });
     }
 
-    // 5. Recuperar los mensajes generados
-    const messages = await openai.beta.threads.messages.list(thread.id);
-    const respuesta = messages.data
-      .filter(m => m.role === "assistant")
-      .map(m => m.content.map(c => c.text.value).join("\n"))
-      .join("\n");
+    const data = await groqRes.json();
+    const plan = data?.choices?.[0]?.message?.content?.trim();
 
-    return res.status(200).json({ plan: respuesta });
+    if (!plan) {
+      return res.status(502).json({ error: 'Respuesta vacía del modelo.' });
+    }
 
+    return res.status(200).json({ plan });
   } catch (error) {
-    console.error("🔴 Error en el asistente:", error);
-    return res.status(500).json({ error: error.message || "Error desconocido con el asistente" });
+    console.error('🔴 Error generando plan:', error);
+    return res.status(500).json({ error: error.message || 'Error desconocido' });
   }
 }
